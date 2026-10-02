@@ -131,6 +131,7 @@ void main(){
     vec3 p = ro + rd * t; vec3 uvw = (p - bmin) / (bmax - bmin);
     vec4 s = mix(texture(tA, uvw), texture(tB, uvw), mixAB);
     float th = s.r * 1.25, Y = s.g, w = s.b, L = s.a;
+    if (p.y < bmin.y + 0.4) Y = 0.;                                                                          // exit face: one bogus fuel plane, not a flame sheet
     float dTh = 0.32 * pow(smoothstep(0.10, 1.05, th), 1.8);
     float dY = 0.010 * Y + 1.4 * Y * (1. - Y) * 4. * smoothstep(0.02, 0.2, 1. - Y);
     float dW = 9.0 * w * w;
