@@ -1,0 +1,33 @@
+{
+ "rows": [
+  [
+   "Camera match (corr. Nova / mini / Standalone)",
+   "0.80 / 0.71 / 0.74"
+  ],
+  [
+   "Camera residual \u03c7\u00b2/px",
+   "765 / 116 / 66"
+  ],
+  [
+   "Physics: mass conservation residual",
+   "0.28"
+  ],
+  [
+   "Physics: energy residual",
+   "0.46"
+  ],
+  [
+   "Physics: fuel residual",
+   "0.47"
+  ],
+  [
+   "Front timing vs the videos (rms)",
+   "1.71 frames"
+  ],
+  [
+   "Across-gap tilt (camera choice)",
+   "1.1 frames"
+  ]
+ ],
+ "note": "A real flame has no truth. On the test flame S1, the same method puts the flame sheet within ~0.4 mm of the truth. Residuals: 0 = equation exactly satisfied, 1 = off by its largest term (1 mm cells)."
+}

@@ -1,0 +1,4 @@
+HANDOFF_FOR_GROK.md
+.vercel
+__pycache__/
+*.pyc

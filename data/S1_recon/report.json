@@ -1,0 +1,41 @@
+{
+ "rows": [
+  [
+   "Flame-sheet position error (mean)",
+   "0.43 mm"
+  ],
+  [
+   "Sheet within 0.5 mm of the truth",
+   "71 %"
+  ],
+  [
+   "Across-gap tilt (correlation)",
+   "0.64"
+  ],
+  [
+   "Temperature error (rms of \u03b8)",
+   "0.132"
+  ],
+  [
+   "Burning rate (heat release)",
+   "-3 %"
+  ],
+  [
+   "Flame area (5 % fuel burned)",
+   "-7 %"
+  ],
+  [
+   "Consumption speed S_L*",
+   "+5 %"
+  ],
+  [
+   "Flow velocity near the front (rel. error)",
+   "0.32"
+  ],
+  [
+   "Camera match (corr., 3 cameras)",
+   "0.98 / 0.96 / 0.95"
+  ]
+ ],
+ "note": "Measured against the known truth: this flame is a simulation, filmed by virtual copies of the three real cameras, then reconstructed blind."
+}

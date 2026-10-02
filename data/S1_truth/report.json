@@ -1,0 +1,25 @@
+{
+ "rows": [
+  [
+   "What",
+   "direct numerical simulation"
+  ],
+  [
+   "Fuel",
+   "lean H\u2082\u2013air, Lewis number 0.36"
+  ],
+  [
+   "Grid",
+   "0.125 \u00d7 0.125 \u00d7 0.1 mm"
+  ],
+  [
+   "Cell",
+   "37 mm wide, 6 mm gap"
+  ],
+  [
+   "Used as",
+   "ground truth for the method study"
+  ]
+ ],
+ "note": "Its light was rendered through the three real camera models to make the synthetic videos that S1's reconstruction saw."
+}
