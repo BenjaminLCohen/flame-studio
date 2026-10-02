@@ -45,6 +45,10 @@
   #card .note { color: var(--mute); margin-top: 6px; font-size: 11.5px; }
   #cap { position: fixed; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); text-align: center; z-index: 3; color: rgba(255,255,255,.72);
     font-size: 13px; letter-spacing: .08em; text-transform: uppercase; opacity: 0; transition: opacity .6s; pointer-events: none; }
+  #tiltgo { position: fixed; z-index: 7; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 72px); transform: translateX(-50%);
+    border: 0; border-radius: 22px; padding: 12px 22px; background: rgba(255,255,255,.16); color: #fff; letter-spacing: .02em;
+    font: 600 15px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+  #tiltgo.hide { display: none; }
   #err { position: fixed; inset: 0; display: none; place-items: center; color: var(--mute); text-align: center; padding: 30px; z-index: 9; }
   @media (orientation: landscape) { #sheet { left: auto; width: min(420px, 50vw); max-height: 100dvh; top: 0; border-radius: 16px 0 0 16px; transform: translateX(105%); border-left: 1px solid var(--edge); }
     #sheet.open { transform: none; } }
@@ -54,6 +58,7 @@
 <canvas id="gl"></canvas>
 <div id="load"></div>
 <div id="cap"></div>
+<button id="tiltgo" type="button">Enable tilt</button>
 <div id="card"></div>
 <button id="gear" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
 <div id="sheet" role="dialog" aria-label="View settings">
@@ -61,7 +66,7 @@
   <h2>View <button id="close" aria-label="Close settings">Done</button></h2>
   <div class="row"><label for="s_flame">Flame</label><select id="s_flame"></select></div>
   <div class="row"><label for="s_field">Show</label><select id="s_field">
-    <option value="auto">Auto: temperature → fuel → reaction</option><option value="0">Temperature</option><option value="1">Fuel concentration</option>
+    <option value="auto">Auto: temperature → flame sheet</option><option value="0">Temperature</option><option value="1">Flame sheet</option>
     <option value="2">Reaction rate</option><option value="3">Flame light (camera model)</option></select></div>
   <div class="row"><label for="s_speed">Playback</label><select id="s_speed">
     <option value="10">Cinematic slow motion (10 s)</option><option value="20">Ultra slow (20 s)</option><option value="5">Faster (5 s)</option></select></div>
@@ -75,7 +80,7 @@
     <option value="auto">Auto</option><option value="high">Maximum (4K)</option><option value="eco">Battery saver</option></select></div>
   <div class="row"><label for="s_card">On pause</label><select id="s_card">
     <option value="1">Show how good the reconstruction is</option><option value="0">Nothing</option></select></div>
-  <div class="row"><label for="s_cap">Captions</label><select id="s_cap"><option value="0">Off</option><option value="1">On</option></select></div>
+  <div class="row"><label for="s_cap">Captions</label><select id="s_cap"><option value="1">On</option><option value="0">Off</option></select></div>
   <div class="about" id="about"></div>
 </div>
 <div id="err"></div>
@@ -83,12 +88,13 @@
 "use strict";
 // ---------------------------------------------------------------------------------------------------------------- state
 const $ = s => document.querySelector(s);
-const FIELDS = ["Temperature", "Fuel concentration", "Reaction rate", "Flame light"];
+const FIELDS = ["Temperature", "Flame sheet", "Reaction rate", "Flame light"];
+const AUTO_FIELDS = [0, 1];
 const S = { flames: [], flame: null, meta: null, comp: [], vel: [], loaded: 0, playing: true, s: 0, fieldMode: "auto", field: 0, fieldW: [1, 0, 0, 0],
-  dur: 10, nPart: 1200, motion: "tilt", depth: 1, quality: "auto", card: true, cap: false, fade: 1, yaw: 0.55, pitch: -0.62, dist: 2.25,
-  roll: 0, stabPitch: 0, stabPitchT: 0, stabRoll: 0, stabRollT: 0, gravRef: null, gSign: 1, gReady: false, spin: 0, scale: 1, frameMs: 16, gen: 0 };
-try { const st = JSON.parse(localStorage.getItem("fsm_settings") || "{}"); if (st.v !== 2) st.depth = 1; Object.assign(S, st); } catch (e) {}
-const saveSettings = () => { try { localStorage.setItem("fsm_settings", JSON.stringify({ v: 2, fieldMode: S.fieldMode, dur: S.dur, nPart: S.nPart, motion: S.motion, depth: S.depth, quality: S.quality, card: S.card, cap: S.cap })); } catch (e) {} };
+  dur: 10, nPart: 1200, motion: "tilt", depth: 1, quality: "auto", card: true, cap: true, fade: 1, yaw: 0.55, pitch: -0.62, dist: 2.25,
+  stabPitch: 0, stabPitchT: 0, stabYaw: 0, stabYawT: 0, spin: 0, scale: 1, frameMs: 16, gen: 0 };
+try { const st = JSON.parse(localStorage.getItem("fsm_settings") || "{}"); if (st.v !== 2 && st.v !== 3) st.depth = 1; if (st.v !== 3) st.cap = true; Object.assign(S, st); } catch (e) {}
+const saveSettings = () => { try { localStorage.setItem("fsm_settings", JSON.stringify({ v: 3, fieldMode: S.fieldMode, dur: S.dur, nPart: S.nPart, motion: S.motion, depth: S.depth, quality: S.quality, card: S.card, cap: S.cap })); } catch (e) {} };
 
 // ---------------------------------------------------------------------------------------------------------------- WebGL
 const cv = $("#gl"); const gl = cv.getContext("webgl2", { antialias: false, alpha: false, powerPreference: "high-performance", premultipliedAlpha: false });
@@ -223,6 +229,7 @@ async function loadFlame(id) {
   const base = (S.base || "data/") + S.flame.id + "/"; S.meta = await (await fetch(base + "meta.json")).json(); if (gen !== S.gen) return;
   try { S.report = await (await fetch(base + "report.json")).json(); } catch (e) { S.report = null; }
   const n = S.meta.n; let next = 0; if (S.startFrac) S.s = Math.min(n - 1.001, S.startFrac * (n - 1));
+  caption(FIELDS[S.fieldMode === "auto" ? S.field : Number(S.fieldMode)] || FIELDS[0]);
   async function worker() { while (next < n && gen === S.gen) { const k = next++;
     const [a, b] = await Promise.all([fetch(base + "s" + k + ".bin.gz").then(r => r.arrayBuffer()), fetch(base + "u" + k + ".bin.gz").then(r => r.arrayBuffer())]);
     if (gen !== S.gen) return; S.comp[k] = a; S.vel[k] = gunzip(b).then(u => new Int16Array(u.buffer, u.byteOffset, u.byteLength / 2)); S.loaded++;
@@ -280,47 +287,33 @@ cv.addEventListener("pointermove", e => { if (!touches.has(e.pointerId)) return;
   else if (touches.size === 2 && pinch0) { const [a, b] = [...touches.values()]; S.dist = Math.max(0.9, Math.min(5, dist0 * pinch0 / Math.max(20, Math.hypot(a[0] - b[0], a[1] - b[1])))); } });
 const up = e => { touches.delete(e.pointerId); if (touches.size < 2) pinch0 = 0;
   if (moved < 12 && performance.now() - tapT < 300) { const now = performance.now();
-    if (now - lastTap < 320) { S.yaw = 0.55; S.pitch = -0.62; S.dist = 2.25; S.roll = 0; S.stabPitch = S.stabPitchT = S.stabRoll = S.stabRollT = 0; S.gravRef = null; S.playing = !S.playing; showCard(); }
+    if (now - lastTap < 320) { S.yaw = 0.55; S.pitch = -0.62; S.dist = 2.25; S.stabPitch = S.stabPitchT = S.stabYaw = S.stabYawT = 0; if (orientInit) { refB = fB; refG = fG; } S.playing = !S.playing; showCard(); }
     else { S.playing = !S.playing; showCard(); } lastTap = now; } };
 cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
-let tiltOn = false, motionTried = false, accelAt = 0;
-function bakeHold() {                                                                                       // fold the gravity lock into the drag pose so a new touch does not jump
-  S.pitch = Math.max(-1.45, Math.min(1.45, S.pitch + (S.stabPitch || 0))); S.roll = (S.roll || 0) + (S.stabRoll || 0);
-  S.stabPitch = S.stabPitchT = S.stabRoll = S.stabRollT = 0; S.gravRef = null; }
+let tiltOn = false, fB = 0, fG = 0, refB = null, refG = null, orientInit = false;
+function bakeHold() {
+  S.pitch = Math.max(-1.45, Math.min(1.45, S.pitch + (S.stabPitch || 0))); S.yaw += S.stabYaw || 0;
+  S.stabPitch = S.stabPitchT = S.stabYaw = S.stabYawT = 0; if (orientInit) { refB = fB; refG = fG; } }
 function goFull() { const d = document.documentElement; if (!document.fullscreenElement && d.requestFullscreen && matchMedia("(pointer: coarse)").matches) d.requestFullscreen({ navigationUI: "hide" }).catch(() => {}); }
-const grav = [0, -1, 0]; let gravInit = false;
-function screenGrav() { const ang = (screen.orientation && screen.orientation.angle) || window.orientation || 0, a = ang * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
-  const x = S.gSign * grav[0], y = S.gSign * grav[1], z = S.gSign * grav[2];
-  return [c * x - s * y, s * x + c * y, z]; }
-function applyGravity(x, y, z) { if (S.motion !== "tilt") return;
-  if (!S.gReady) { S.gReady = true; S.gSign = (Math.abs(y) >= Math.abs(x) && Math.abs(y) >= Math.abs(z) && y > 0) ? -1 : 1; }
-  if (!gravInit) { grav[0] = x; grav[1] = y; grav[2] = z; gravInit = true; }
-  else { const k = 0.35; grav[0] += (x - grav[0]) * k; grav[1] += (y - grav[1]) * k; grav[2] += (z - grav[2]) * k; }
-  const [sx, sy, sz] = screenGrav(), mag = Math.hypot(sx, sy, sz) || 1, h = Math.hypot(sx, sy);
-  const roll = h > mag * 0.22 ? Math.atan2(sx, -sy) : (S.gravRef ? S.gravRef[1] : 0);
-  const tip = Math.atan2(-sz, h || 1e-3);
-  if (!S.gravRef) S.gravRef = [tip, roll];
-  let dR = roll - S.gravRef[1]; if (dR > Math.PI) dR -= 2 * Math.PI; else if (dR < -Math.PI) dR += 2 * Math.PI;
-  S.stabPitchT = tip - S.gravRef[0]; S.stabRollT = -dR; }
-function onMotion(e) { const m = e.accelerationIncludingGravity; if (!m || m.x == null) return;
-  const mag = Math.hypot(m.x, m.y, m.z); if (mag < 0.2) return; accelAt = performance.now(); applyGravity(m.x, m.y, m.z); }
-function onOrient(e) { if (e.beta == null || performance.now() - accelAt < 400) return;                                         // iPhone: beta 0 face-up, 90 upright
-  const b = e.beta * Math.PI / 180, g = (e.gamma || 0) * Math.PI / 180, cg = Math.cos(g);
-  applyGravity(Math.sin(g), -Math.sin(b) * cg, -Math.cos(b) * cg); }
-function startTilt() { if (tiltOn) return; tiltOn = true;
-  window.addEventListener("devicemotion", onMotion, { passive: true }); window.addEventListener("deviceorientation", onOrient, { passive: true }); }
-function enableTilt() { if (S.motion !== "tilt" || tiltOn || motionTried) return;
-  const needM = typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function";
-  const needO = typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function";
-  if (!needM && !needO) { startTilt(); return; }
-  motionTried = true; const reqs = [];
-  try { if (needO) reqs.push(DeviceOrientationEvent.requestPermission()); if (needM) reqs.push(DeviceMotionEvent.requestPermission()); }
-  catch (e) { motionTried = false; return; }
-  goFull();
-  Promise.all(reqs).then(states => { if (states.some(s => s === "granted")) startTilt();
-    else { const c = $("#cap"); c.textContent = "Allow motion access to hold the cell still"; c.style.opacity = 1; setTimeout(() => { c.style.opacity = 0; }, 2800); } }).catch(() => { motionTried = false; }); }
-window.addEventListener("touchend", enableTilt, { passive: true }); window.addEventListener("click", enableTilt);
-if (!(typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") && !(typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function")) startTilt();
+function onOrient(e) { if (S.motion !== "tilt" || e.beta == null || e.gamma == null) return;
+  if (!orientInit) { fB = e.beta; fG = e.gamma; orientInit = true; refB = fB; refG = fG; return; }
+  let db = e.beta - fB, dg = e.gamma - fG;
+  if (db > 180) db -= 360; else if (db < -180) db += 360; if (dg > 180) dg -= 360; else if (dg < -180) dg += 360;
+  if (Math.abs(db) > 20 || Math.abs(dg) > 20) return;                                                                  // drop a spiked sample instead of jumping
+  fB += db * 0.16; fG += dg * 0.16;
+  let dB = fB - refB, dG = fG - refG;
+  if (dB > 180) dB -= 360; else if (dB < -180) dB += 360; if (dG > 180) dG -= 360; else if (dG < -180) dG += 360;
+  const ang = ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * Math.PI / 180, c = Math.cos(ang), s = Math.sin(ang);
+  const side = dG * c - dB * s, fore = dG * s + dB * c, dz = 1.8;
+  const sideE = Math.abs(side) < dz ? 0 : side - Math.sign(side) * dz, foreE = Math.abs(fore) < dz ? 0 : fore - Math.sign(fore) * dz;
+  S.stabYawT = Math.max(-0.85, Math.min(0.85, -sideE * Math.PI / 180));                                               // side to side turns the sheet, it does not spin in place
+  S.stabPitchT = Math.max(-0.65, Math.min(0.65, -foreE * Math.PI / 180)); }
+function startTilt() { if (tiltOn) return; tiltOn = true; window.addEventListener("deviceorientation", onOrient, { passive: true }); }
+$("#tiltgo").addEventListener("click", () => { const btn = $("#tiltgo"); goFull();
+  const need = typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function";
+  if (!need) { startTilt(); btn.classList.add("hide"); return; }
+  DeviceOrientationEvent.requestPermission().then(st => { if (st === "granted") { startTilt(); btn.classList.add("hide"); } else btn.textContent = "Allow tilt to look around"; }).catch(() => { btn.textContent = "Tap again to allow tilt"; }); });
+if (!(typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function")) { $("#tiltgo").classList.add("hide"); startTilt(); }
 
 // ---------------------------------------------------------------------------------------------------------------- report card on pause, captions, settings
 function showCard() { const c = $("#card"); if (S.playing || !S.card) { c.classList.remove("on"); return; }
@@ -339,7 +332,7 @@ function bindSettings() {
   const sel = $("#s_flame"); sel.innerHTML = S.flames.map(f => `<option value="${f.id}">${f.title}${f.subtitle ? " · " + f.subtitle : ""}</option>`).join("");
   sel.value = S.flame.id; sel.onchange = () => loadFlame(sel.value);
   const bind = (id, key, conv = v => v) => { const el = $(id); el.value = String(S[key]); if (el.value !== String(S[key])) el.selectedIndex = 0;
-    el.onchange = () => { S[key] = conv(el.value); saveSettings(); if (key === "nPart") resetParticles(true); if (key === "motion") { bakeHold(); motionTried = false; enableTilt(); } }; };
+    el.onchange = () => { S[key] = conv(el.value); saveSettings(); if (key === "nPart") resetParticles(true); if (key === "motion") { bakeHold(); if (S.motion === "tilt" && !tiltOn) $("#tiltgo").classList.remove("hide"); } }; };
   bind("#s_field", "fieldMode"); bind("#s_speed", "dur", Number); bind("#s_flow", "nPart", Number); bind("#s_motion", "motion"); bind("#s_depth", "depth", Number);
   bind("#s_q", "quality"); bind("#s_card", "card", v => v === "1"); bind("#s_cap", "cap", v => v === "1");
   $("#s_card").value = S.card ? "1" : "0"; $("#s_cap").value = S.cap ? "1" : "0";
@@ -359,22 +352,18 @@ function frame(now) {
   const n = S.meta.n; const ready = k => !!S.comp[Math.min(k + 1, n - 1)];
   // playback: n states over S.dur seconds; at the end fade out, switch field (auto), fade in
   if (S.playing && ready(Math.floor(S.s) + 1)) { S.s += dt * (n - 1) / S.dur; }
-  if (S.s >= n - 1) { S.s = 0; resetParticles(true); if (S.fieldMode === "auto") { S.field = (S.field + 1) % 3; caption(FIELDS[S.field]); } }
+  if (S.s >= n - 1) { S.s = 0; resetParticles(true); if (S.fieldMode === "auto") { const i = AUTO_FIELDS.indexOf(S.field); S.field = AUTO_FIELDS[(i < 0 ? 0 : i + 1) % AUTO_FIELDS.length]; caption(FIELDS[S.field]); } }
   const fadeIn = Math.min(1, S.s / ((n - 1) * 0.04)), fadeOut = Math.min(1, (n - 1 - S.s) / ((n - 1) * 0.04)); const target = Math.min(fadeIn, fadeOut);
   S.fade += (target - S.fade) * Math.min(1, dt * 10);
   const fsel = S.fieldMode === "auto" ? S.field : Number(S.fieldMode);
   for (let i = 0; i < 4; i++) S.fieldW[i] += ((i === fsel ? 1 : 0) - S.fieldW[i]) * Math.min(1, dt * 3);
   const k = Math.min(Math.floor(S.s), n - 2), w = S.s - k; ensureTex(k); velPair(k);
-  // camera: drag, plus a gravity lock so the cell stays put in the room when the phone tips
-  S.stabPitch += ((S.stabPitchT || 0) - S.stabPitch) * Math.min(1, dt * 12); S.stabRoll += ((S.stabRollT || 0) - S.stabRoll) * Math.min(1, dt * 12);
+  S.stabPitch += ((S.stabPitchT || 0) - S.stabPitch) * Math.min(1, dt * 4); S.stabYaw += ((S.stabYawT || 0) - S.stabYaw) * Math.min(1, dt * 4);
   if (S.motion === "spin") S.spin += dt * 0.12;
-  const stabP = S.motion === "tilt" ? S.stabPitch : 0, stabR = (S.roll || 0) + (S.motion === "tilt" ? S.stabRoll : 0);
-  const yaw = S.yaw + S.spin, pitch = Math.max(-2.2, Math.min(2.2, S.pitch + stabP));
+  const yaw = S.yaw + S.spin + (S.motion === "tilt" ? S.stabYaw : 0), pitch = Math.max(-1.5, Math.min(1.5, S.pitch + (S.motion === "tilt" ? S.stabPitch : 0)));
   const asp = cv.width / cv.height, land = asp > 1.05, c = [0, -4, 0], R = S.dist * 45 * (land ? 1.05 : Math.max(1, 0.85 / asp)); const ra = land ? pitch : yaw, rb = land ? -yaw : pitch;
   const fwd = rot(ra, rb, [0, 0, 1]); const eye = [c[0] - fwd[0] * R, c[1] - fwd[1] * R, c[2] - fwd[2] * R];
-  let upv = rot(ra, rb, land ? [-1, 0, 0] : [0, 1, 0]);
-  if (stabR) { const k = norm(fwd), cs = Math.cos(stabR), sn = Math.sin(stabR), d = dot(k, upv), cr = cross(k, upv);
-    upv = [upv[0] * cs + cr[0] * sn + k[0] * d * (1 - cs), upv[1] * cs + cr[1] * sn + k[1] * d * (1 - cs), upv[2] * cs + cr[2] * sn + k[2] * d * (1 - cs)]; }
+  const upv = rot(ra, rb, land ? [-1, 0, 0] : [0, 1, 0]);
   const V = M4.look(eye, c, upv), Pm = M4.persp(0.62, cv.width / cv.height, 1, 1000), VP = M4.mul(Pm, V);
   // volume
   gl.useProgram(P_VOL); gl.bindVertexArray(vaoQ);
