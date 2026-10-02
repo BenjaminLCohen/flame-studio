@@ -58,7 +58,7 @@
 <canvas id="gl"></canvas>
 <div id="load"></div>
 <div id="cap"></div>
-<button id="tiltgo" type="button">Enable tilt</button>
+<button id="tiltgo" type="button" class="hide" hidden>Enable tilt</button>
 <div id="card"></div>
 <button id="gear" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
 <div id="sheet" role="dialog" aria-label="View settings">
@@ -73,7 +73,7 @@
   <div class="row"><label for="s_flow">Flow</label><select id="s_flow">
     <option value="1200">Streamlines</option><option value="2600">Dense streamlines</option><option value="0">Off</option></select></div>
   <div class="row"><label for="s_motion">Motion</label><select id="s_motion">
-    <option value="tilt">Cell stays put</option><option value="drag">Drag only</option><option value="spin">Slow auto-orbit</option></select></div>
+    <option value="drag">Drag only</option><option value="spin">Slow auto-orbit</option><option value="tilt" hidden>Cell stays put</option></select></div>
   <div class="row"><label for="s_depth">Gap depth</label><select id="s_depth">
     <option value="1">True scale (6 mm)</option><option value="2">2× (easier to see)</option><option value="3.5">3.5×</option></select></div>
   <div class="row"><label for="s_q">Quality</label><select id="s_q">
@@ -91,10 +91,10 @@ const $ = s => document.querySelector(s);
 const FIELDS = ["Temperature", "Flame sheet", "Reaction rate", "Flame light"];
 const AUTO_FIELDS = [0, 1];
 const S = { flames: [], flame: null, meta: null, comp: [], vel: [], loaded: 0, playing: true, s: 0, fieldMode: "auto", field: 0, fieldW: [1, 0, 0, 0],
-  dur: 10, nPart: 1200, motion: "tilt", depth: 1, quality: "auto", card: true, cap: true, fade: 1, yaw: 0.55, pitch: -0.62, dist: 2.25,
+  dur: 10, nPart: 1200, motion: "drag", depth: 1, quality: "auto", card: true, cap: true, fade: 1, yaw: 0.55, pitch: -0.62, dist: 2.25,
   stabPitch: 0, stabPitchT: 0, stabYaw: 0, stabYawT: 0, spin: 0, scale: 1, frameMs: 16, gen: 0 };
-try { const st = JSON.parse(localStorage.getItem("fsm_settings") || "{}"); if (st.v !== 2 && st.v !== 3) st.depth = 1; if (st.v !== 3) st.cap = true; Object.assign(S, st); } catch (e) {}
-const saveSettings = () => { try { localStorage.setItem("fsm_settings", JSON.stringify({ v: 3, fieldMode: S.fieldMode, dur: S.dur, nPart: S.nPart, motion: S.motion, depth: S.depth, quality: S.quality, card: S.card, cap: S.cap })); } catch (e) {} };
+try { const st = JSON.parse(localStorage.getItem("fsm_settings") || "{}"); if (st.v !== 2 && st.v !== 3 && st.v !== 4) st.depth = 1; if (st.v !== 3 && st.v !== 4) st.cap = true; if (st.v !== 4) st.motion = "drag"; Object.assign(S, st); } catch (e) {}
+const saveSettings = () => { try { localStorage.setItem("fsm_settings", JSON.stringify({ v: 4, fieldMode: S.fieldMode, dur: S.dur, nPart: S.nPart, motion: S.motion, depth: S.depth, quality: S.quality, card: S.card, cap: S.cap })); } catch (e) {} };
 
 // ---------------------------------------------------------------------------------------------------------------- WebGL
 const cv = $("#gl"); const gl = cv.getContext("webgl2", { antialias: false, alpha: false, powerPreference: "high-performance", premultipliedAlpha: false });
@@ -313,7 +313,6 @@ $("#tiltgo").addEventListener("click", () => { const btn = $("#tiltgo"); goFull(
   const need = typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function";
   if (!need) { startTilt(); btn.classList.add("hide"); return; }
   DeviceOrientationEvent.requestPermission().then(st => { if (st === "granted") { startTilt(); btn.classList.add("hide"); } else btn.textContent = "Allow tilt to look around"; }).catch(() => { btn.textContent = "Tap again to allow tilt"; }); });
-if (!(typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function")) { $("#tiltgo").classList.add("hide"); startTilt(); }
 
 // ---------------------------------------------------------------------------------------------------------------- report card on pause, captions, settings
 function showCard() { const c = $("#card"); if (S.playing || !S.card) { c.classList.remove("on"); return; }
@@ -332,7 +331,7 @@ function bindSettings() {
   const sel = $("#s_flame"); sel.innerHTML = S.flames.map(f => `<option value="${f.id}">${f.title}${f.subtitle ? " · " + f.subtitle : ""}</option>`).join("");
   sel.value = S.flame.id; sel.onchange = () => loadFlame(sel.value);
   const bind = (id, key, conv = v => v) => { const el = $(id); el.value = String(S[key]); if (el.value !== String(S[key])) el.selectedIndex = 0;
-    el.onchange = () => { S[key] = conv(el.value); saveSettings(); if (key === "nPart") resetParticles(true); if (key === "motion") { bakeHold(); if (S.motion === "tilt" && !tiltOn) $("#tiltgo").classList.remove("hide"); } }; };
+    el.onchange = () => { S[key] = conv(el.value); saveSettings(); if (key === "nPart") resetParticles(true); if (key === "motion") bakeHold(); }; };
   bind("#s_field", "fieldMode"); bind("#s_speed", "dur", Number); bind("#s_flow", "nPart", Number); bind("#s_motion", "motion"); bind("#s_depth", "depth", Number);
   bind("#s_q", "quality"); bind("#s_card", "card", v => v === "1"); bind("#s_cap", "cap", v => v === "1");
   $("#s_card").value = S.card ? "1" : "0"; $("#s_cap").value = S.cap ? "1" : "0";
