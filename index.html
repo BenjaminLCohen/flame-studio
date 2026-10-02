@@ -68,7 +68,7 @@
   <div class="row"><label for="s_flow">Flow</label><select id="s_flow">
     <option value="1200">Streamlines</option><option value="2600">Dense streamlines</option><option value="0">Off</option></select></div>
   <div class="row"><label for="s_motion">Motion</label><select id="s_motion">
-    <option value="tilt">Tilt phone + drag</option><option value="drag">Drag only</option><option value="spin">Slow auto-orbit</option></select></div>
+    <option value="tilt">Cell stays put</option><option value="drag">Drag only</option><option value="spin">Slow auto-orbit</option></select></div>
   <div class="row"><label for="s_depth">Gap depth</label><select id="s_depth">
     <option value="2">2× (easier to see)</option><option value="1">True scale (6 mm)</option><option value="3.5">3.5×</option></select></div>
   <div class="row"><label for="s_q">Quality</label><select id="s_q">
@@ -86,7 +86,7 @@ const $ = s => document.querySelector(s);
 const FIELDS = ["Temperature", "Fuel concentration", "Reaction rate", "Flame light"];
 const S = { flames: [], flame: null, meta: null, comp: [], vel: [], loaded: 0, playing: true, s: 0, fieldMode: "auto", field: 0, fieldW: [1, 0, 0, 0],
   dur: 10, nPart: 1200, motion: "tilt", depth: 2, quality: "auto", card: true, cap: false, fade: 1, yaw: 0.55, pitch: -0.62, dist: 2.25,
-  tiltYaw: 0, tiltPitch: 0, tiltRef: null, spin: 0, scale: 1, frameMs: 16, gen: 0 };
+  roll: 0, stabPitch: 0, stabPitchT: 0, stabRoll: 0, stabRollT: 0, gravRef: null, gSign: 1, gReady: false, spin: 0, scale: 1, frameMs: 16, gen: 0 };
 try { const st = JSON.parse(localStorage.getItem("fsm_settings") || "{}"); Object.assign(S, st); } catch (e) {}
 const saveSettings = () => { try { localStorage.setItem("fsm_settings", JSON.stringify({ fieldMode: S.fieldMode, dur: S.dur, nPart: S.nPart, motion: S.motion, depth: S.depth, quality: S.quality, card: S.card, cap: S.cap })); } catch (e) {} };
 
@@ -272,26 +272,38 @@ function drawParticles(VP) { const n = S.nPart; if (!n || !PX.length) return; co
 
 // ---------------------------------------------------------------------------------------------------------------- controls: drag, pinch, tap, double tap, phone tilt
 let touches = new Map(), tapT = 0, moved = 0, lastTap = 0, pinch0 = 0, dist0 = 0;
-cv.addEventListener("pointerdown", e => { touches.set(e.pointerId, [e.clientX, e.clientY]); moved = 0; tapT = performance.now(); askMotion(); goFull();
+cv.addEventListener("pointerdown", e => { touches.set(e.pointerId, [e.clientX, e.clientY]); moved = 0; tapT = performance.now(); bakeHold(); askMotion(); goFull();
   if (touches.size === 2) { const [a, b] = [...touches.values()]; pinch0 = Math.hypot(a[0] - b[0], a[1] - b[1]); dist0 = S.dist; } });
 cv.addEventListener("pointermove", e => { if (!touches.has(e.pointerId)) return; const p = touches.get(e.pointerId), dx = e.clientX - p[0], dy = e.clientY - p[1];
   touches.set(e.pointerId, [e.clientX, e.clientY]); moved += Math.abs(dx) + Math.abs(dy);
-  if (touches.size === 1) { S.yaw -= dx * 0.006; S.pitch = Math.max(-1.45, Math.min(1.45, S.pitch - dy * 0.006)); }
+  if (touches.size === 1) { S.yaw -= dx * 0.006; S.pitch = Math.max(-1.45, Math.min(1.45, S.pitch + dy * 0.006)); }
   else if (touches.size === 2 && pinch0) { const [a, b] = [...touches.values()]; S.dist = Math.max(0.9, Math.min(5, dist0 * pinch0 / Math.max(20, Math.hypot(a[0] - b[0], a[1] - b[1])))); } });
 const up = e => { touches.delete(e.pointerId); if (touches.size < 2) pinch0 = 0;
   if (moved < 12 && performance.now() - tapT < 300) { const now = performance.now();
-    if (now - lastTap < 320) { S.yaw = 0.55; S.pitch = -0.62; S.dist = 2.25; S.tiltRef = null; S.playing = !S.playing; showCard(); }     // double tap: reset view (undo the pause of the first tap)
+    if (now - lastTap < 320) { S.yaw = 0.55; S.pitch = -0.62; S.dist = 2.25; S.roll = 0; S.stabPitch = S.stabPitchT = S.stabRoll = S.stabRollT = 0; S.gravRef = null; S.playing = !S.playing; showCard(); }
     else { S.playing = !S.playing; showCard(); } lastTap = now; } };
 cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
 let motionAsked = false;
+function bakeHold() {                                                                                       // fold the gravity lock into the drag pose so a new touch does not jump
+  S.pitch = Math.max(-1.45, Math.min(1.45, S.pitch + (S.stabPitch || 0))); S.roll = (S.roll || 0) + (S.stabRoll || 0);
+  S.stabPitch = S.stabPitchT = S.stabRoll = S.stabRollT = 0; S.gravRef = null; }
 function askMotion() { if (motionAsked || S.motion !== "tilt") return; motionAsked = true;
-  if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") DeviceOrientationEvent.requestPermission().catch(() => {}); }
+  const ask = C => { try { if (C && typeof C.requestPermission === "function") C.requestPermission().catch(() => {}); } catch (e) {} };
+  ask(typeof DeviceMotionEvent !== "undefined" ? DeviceMotionEvent : null); ask(typeof DeviceOrientationEvent !== "undefined" ? DeviceOrientationEvent : null); }
 function goFull() { const d = document.documentElement; if (!document.fullscreenElement && d.requestFullscreen && matchMedia("(pointer: coarse)").matches) d.requestFullscreen({ navigationUI: "hide" }).catch(() => {}); }
-window.addEventListener("deviceorientation", e => { if (S.motion !== "tilt" || e.beta == null) return;
-  if (!S.tiltRef) S.tiltRef = [e.beta, e.gamma];
-  const dB = Math.max(-40, Math.min(40, e.beta - S.tiltRef[0])), dG = Math.max(-40, Math.min(40, e.gamma - S.tiltRef[1]));
-  S.tiltRef[0] += 0.004 * (e.beta - S.tiltRef[0]); S.tiltRef[1] += 0.004 * (e.gamma - S.tiltRef[1]);                       // slow re-centring: hold the phone any way
-  S.tiltYawT = -dG * Math.PI / 180 * 1.1; S.tiltPitchT = -dB * Math.PI / 180 * 0.9; });
+const grav = [0, -9.8, 0];
+function screenGrav() { const ang = (screen.orientation && screen.orientation.angle) || window.orientation || 0, a = ang * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  const x = S.gSign * grav[0], y = S.gSign * grav[1], z = S.gSign * grav[2];
+  return [c * x - s * y, s * x + c * y, z]; }
+window.addEventListener("devicemotion", e => { const m = e.accelerationIncludingGravity; if (!m || m.x == null || S.motion !== "tilt") return;
+  if (!S.gReady) { S.gReady = true; S.gSign = (Math.abs(m.y) >= Math.abs(m.x) && Math.abs(m.y) >= Math.abs(m.z) && m.y > 3) ? -1 : 1; }   // a few phones report gravity the other way
+  const k = 0.28; grav[0] += (m.x - grav[0]) * k; grav[1] += (m.y - grav[1]) * k; grav[2] += (m.z - grav[2]) * k;
+  const [sx, sy, sz] = screenGrav(), h = Math.hypot(sx, sy);
+  const roll = h > 1.5 ? Math.atan2(sx, -sy) : (S.gravRef ? S.gravRef[1] : 0);                                           // roll is meaningless when the screen is flat
+  const tip = Math.atan2(-sz, h || 1);
+  if (!S.gravRef) S.gravRef = [tip, roll];
+  let dR = roll - S.gravRef[1]; if (dR > Math.PI) dR -= 2 * Math.PI; else if (dR < -Math.PI) dR += 2 * Math.PI;
+  S.stabPitchT = tip - S.gravRef[0]; S.stabRollT = -dR; }, { passive: true });
 
 // ---------------------------------------------------------------------------------------------------------------- report card on pause, captions, settings
 function showCard() { const c = $("#card"); if (S.playing || !S.card) { c.classList.remove("on"); return; }
@@ -310,7 +322,7 @@ function bindSettings() {
   const sel = $("#s_flame"); sel.innerHTML = S.flames.map(f => `<option value="${f.id}">${f.title}${f.subtitle ? " · " + f.subtitle : ""}</option>`).join("");
   sel.value = S.flame.id; sel.onchange = () => loadFlame(sel.value);
   const bind = (id, key, conv = v => v) => { const el = $(id); el.value = String(S[key]); if (el.value !== String(S[key])) el.selectedIndex = 0;
-    el.onchange = () => { S[key] = conv(el.value); saveSettings(); if (key === "nPart") resetParticles(true); if (key === "motion") { S.tiltRef = null; S.tiltYawT = S.tiltPitchT = 0; motionAsked = false; askMotion(); } }; };
+    el.onchange = () => { S[key] = conv(el.value); saveSettings(); if (key === "nPart") resetParticles(true); if (key === "motion") { bakeHold(); motionAsked = false; askMotion(); } }; };
   bind("#s_field", "fieldMode"); bind("#s_speed", "dur", Number); bind("#s_flow", "nPart", Number); bind("#s_motion", "motion"); bind("#s_depth", "depth", Number);
   bind("#s_q", "quality"); bind("#s_card", "card", v => v === "1"); bind("#s_cap", "cap", v => v === "1");
   $("#s_card").value = S.card ? "1" : "0"; $("#s_cap").value = S.cap ? "1" : "0";
@@ -336,13 +348,16 @@ function frame(now) {
   const fsel = S.fieldMode === "auto" ? S.field : Number(S.fieldMode);
   for (let i = 0; i < 4; i++) S.fieldW[i] += ((i === fsel ? 1 : 0) - S.fieldW[i]) * Math.min(1, dt * 3);
   const k = Math.min(Math.floor(S.s), n - 2), w = S.s - k; ensureTex(k); velPair(k);
-  // camera: drag + tilt (smoothed) + optional auto orbit
-  S.tiltYaw += ((S.tiltYawT || 0) - S.tiltYaw) * Math.min(1, dt * 6); S.tiltPitch += ((S.tiltPitchT || 0) - S.tiltPitch) * Math.min(1, dt * 6);
+  // camera: drag, plus a gravity lock so the cell stays put in the room when the phone tips
+  S.stabPitch += ((S.stabPitchT || 0) - S.stabPitch) * Math.min(1, dt * 12); S.stabRoll += ((S.stabRollT || 0) - S.stabRoll) * Math.min(1, dt * 12);
   if (S.motion === "spin") S.spin += dt * 0.12;
-  const yaw = S.yaw + S.tiltYaw + S.spin, pitch = Math.max(-1.5, Math.min(1.5, S.pitch + S.tiltPitch));
-  const asp = cv.width / cv.height, land = asp > 1.05, c = [0, -4, 0], R = S.dist * 45 * (land ? 1.05 : Math.max(1, 0.85 / asp)); const ra = land ? pitch : yaw, rb = land ? -yaw : pitch;                                   // landscape: swap the drag axes with the rotated view
+  const stabP = S.motion === "tilt" ? S.stabPitch : 0, stabR = (S.roll || 0) + (S.motion === "tilt" ? S.stabRoll : 0);
+  const yaw = S.yaw + S.spin, pitch = Math.max(-2.2, Math.min(2.2, S.pitch + stabP));
+  const asp = cv.width / cv.height, land = asp > 1.05, c = [0, -4, 0], R = S.dist * 45 * (land ? 1.05 : Math.max(1, 0.85 / asp)); const ra = land ? pitch : yaw, rb = land ? -yaw : pitch;
   const fwd = rot(ra, rb, [0, 0, 1]); const eye = [c[0] - fwd[0] * R, c[1] - fwd[1] * R, c[2] - fwd[2] * R];
-  const upv = rot(ra, rb, land ? [-1, 0, 0] : [0, 1, 0]);                             // landscape: the channel runs across the screen
+  let upv = rot(ra, rb, land ? [-1, 0, 0] : [0, 1, 0]);
+  if (stabR) { const k = norm(fwd), cs = Math.cos(stabR), sn = Math.sin(stabR), d = dot(k, upv), cr = cross(k, upv);
+    upv = [upv[0] * cs + cr[0] * sn + k[0] * d * (1 - cs), upv[1] * cs + cr[1] * sn + k[1] * d * (1 - cs), upv[2] * cs + cr[2] * sn + k[2] * d * (1 - cs)]; }
   const V = M4.look(eye, c, upv), Pm = M4.persp(0.62, cv.width / cv.height, 1, 1000), VP = M4.mul(Pm, V);
   // volume
   gl.useProgram(P_VOL); gl.bindVertexArray(vaoQ);
