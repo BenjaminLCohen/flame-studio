@@ -19,14 +19,6 @@
   [
    "Physics: fuel residual",
    "0.42"
-  ],
-  [
-   "Front timing vs the videos (rms)",
-   "0.80 frames"
-  ],
-  [
-   "Across-gap tilt (camera choice)",
-   "0.0 frames"
   ]
  ],
  "note": "A real flame has no truth. On the test flame S1, the same method puts the flame sheet within ~0.4 mm of the truth. Residuals: 0 = equation exactly satisfied, 1 = off by its largest term (1 mm cells)."
