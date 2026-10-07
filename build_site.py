@@ -41,7 +41,6 @@ def report_s1_recon():
     p = s.get("spline") or {}; sh_ = p.get("shape") or {}; cam = s.get("camera") or {}
     rows = [["Flame-sheet position error (mean)", f2(sh_.get("surf_dist_mean_mm"), 2, " mm")],
             ["Sheet within 0.5 mm of the truth", f2(100 * sh_["bf_0.5mm"], 0, " %") if sh_.get("bf_0.5mm") is not None else "–"],
-            ["Across-gap tilt (correlation)", f2(sh_.get("gap_tilt_corr"))],
             ["Temperature error (rms of θ)", f2(p.get("theta_rms"), 3)],
             ["Burning rate (heat release)", pc(p.get("bias_Q"))],
             ["Flame area (5 % fuel burned)", pc(p.get("bias_A1_c005"))],
@@ -66,12 +65,10 @@ def report_z(z):
         s = ssh_json(f"/workspace/zlab/runs/{z}_{name}/summary.json") or s
     rows = []
     if s:
-        cam = s.get("camera") or {}; ph = s.get("physics_cell1") or {}; st = s.get("steer") or {}
+        cam = s.get("camera") or {}; ph = s.get("physics_cell1") or {}
         rows += [["Camera match (corr. Nova / mini / Standalone)", " / ".join(f"{x:.2f}" for x in cam.get("corr", []) if x == x) or "–"],
                  ["Camera residual χ²/px", " / ".join(f"{x:.0f}" for x in cam.get("chi2", []) if x == x) or "–"],
-                 ["Physics: mass conservation residual", f2(ph.get("cont"))], ["Physics: energy residual", f2(ph.get("energy"))], ["Physics: fuel residual", f2(ph.get("fuel"))],
-                 ["Front timing vs the videos (rms)", f2(st.get("lag_rms"), 2, " frames")],
-                 ["Across-gap tilt (camera choice)", f"{s.get('steering', {}).get('split-tilt', '–')} frames"]]
+                 ["Physics: mass conservation residual", f2(ph.get("cont"))], ["Physics: energy residual", f2(ph.get("energy"))], ["Physics: fuel residual", f2(ph.get("fuel"))]]
     return dict(rows=rows, note="A real flame has no truth. On the test flame S1, the same method puts the flame sheet within ~0.4 mm of the truth. "
                                  "Residuals: 0 = equation exactly satisfied, 1 = off by its largest term (1 mm cells).")
 
