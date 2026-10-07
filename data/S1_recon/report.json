@@ -35,6 +35,18 @@
   [
    "Camera match (corr., 3 cameras)",
    "0.98 / 0.96 / 0.95"
+  ],
+  [
+   "Physics: mass conservation residual",
+   "0.24"
+  ],
+  [
+   "Physics: energy residual",
+   "0.48"
+  ],
+  [
+   "Physics: fuel residual",
+   "0.42"
   ]
  ],
  "note": "Measured against the known truth: this flame is a simulation, filmed by virtual copies of the three real cameras, then reconstructed blind."

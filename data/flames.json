@@ -3,12 +3,12 @@
  "flames": [
   {
    "id": "Z2_v85",
-   "title": "Flame Z2",
+   "title": "Flame T2",
    "subtitle": "3-D reconstruction from 3 high-speed cameras (v8.5)"
   },
   {
    "id": "Z1_v85",
-   "title": "Flame Z1",
+   "title": "Flame T1",
    "subtitle": "3-D reconstruction from 3 high-speed cameras (v8.5)"
   },
   {
@@ -22,5 +22,5 @@
    "subtitle": "the simulation the S1 videos were made from"
   }
  ],
- "about": "Lean hydrogen\u2013air flames racing through a 6 mm gap between two glass plates, filmed by three high-speed cameras at 750 frames per second. Each 3-D flame is reconstructed with SPARC: a 3-D low-Mach combustion simulation steered to the cameras' arrival times (the across-gap tilt is chosen by the camera fit), projected onto a smooth spline model of every field. Test flame S1 has a known truth, which is how the method's accuracy was measured. Tap to pause and see how good each reconstruction is. Drag or tilt the phone to look around; double-tap to reset."
+ "about": "Lean hydrogen–air flames racing through a 6 mm gap between two glass plates, filmed by three high-speed cameras at 750 frames per second."
 }
